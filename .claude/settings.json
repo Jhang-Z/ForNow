@@ -1,0 +1,56 @@
+{
+  "_comment": "Claude for VS Code 权限配置 — 一次配好永不手动点",
+
+  "permissions": {
+    "allow": [
+      "Bash(npm *)", "Bash(npx *)", "Bash(node *)",
+      "Bash(pnpm *)", "Bash(bun *)",
+      "Bash(git status)", "Bash(git diff *)", "Bash(git log *)",
+      "Bash(git add *)", "Bash(git stash *)",
+      "Bash(git checkout *)", "Bash(git branch *)",
+      "Bash(./scripts/*.sh *)",
+      "Bash(ls *)", "Bash(cat *)", "Bash(grep *)",
+      "Bash(find *)", "Bash(jq *)", "Bash(mkdir *)",
+      "Edit(server/**)", "Edit(webui/**)",
+      "Edit(ios/**)", "Edit(docs/**)",
+      "Edit(.claude/**)", "Edit(scripts/**)",
+      "Edit(CLAUDE.md)", "Edit(CLAUDE.local.md)",
+      "Write(server/**)", "Write(webui/**)",
+      "Write(ios/**)", "Write(docs/**)",
+      "Write(scripts/**)", "Write(logs/**)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -fd *)",
+      "Bash(rm -rf *)",
+      "Bash(sudo *)"
+    ]
+  },
+
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "type": "command",
+        "command": "bash ./scripts/hooks/inject-context.sh",
+        "description": "每次发消息自动注入 git 状态和当前任务"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "type": "command",
+        "command": "bash ./scripts/hooks/post-edit-check.sh",
+        "description": "文件修改后检查 Token 硬编码和跨域 import"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit *)",
+        "type": "command",
+        "command": "bash ./scripts/hooks/pre-commit-check.sh",
+        "description": "提交前架构守卫"
+      }
+    ]
+  }
+}
