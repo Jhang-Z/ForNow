@@ -1,87 +1,48 @@
 import { useEffect, useState } from 'react';
-
-interface RitualTemplate {
-  id: string;
-  key: string;
-  title: string;
-  description: string | null;
-  isOptional: boolean;
-  order: number;
-}
-
-interface RitualEntry {
-  id: string;
-  userId: string;
-  templateId: string;
-  date: string;
-  completed: boolean;
-  content: string | null;
-  completedAt: string | null;
-}
-
-interface TodayRitualData {
-  traceId: string;
-  templates: RitualTemplate[];
-  entries: RitualEntry[];
-  date: string;
-}
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+import { db, type RitualItem } from '../../bridge/db';
 
 export default function RitualPage() {
-  const [data, setData] = useState<TodayRitualData | null>(null);
+  const [items, setItems] = useState<RitualItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [completingKey, setCompletingKey] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchTodayRitual();
+    void fetchTodayRitual();
   }, []);
 
   async function fetchTodayRitual() {
+    setHasError(false);
+    setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/ritual/today?userId=default`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData((await res.json()) as TodayRitualData);
+      setItems(await db.ritual.getToday());
+    } catch {
+      setHasError(true);
     } finally {
       setIsLoading(false);
     }
   }
 
-  async function handleComplete(templateKey: string) {
-    if (completingKey) return;
-    setCompletingKey(templateKey);
+  async function handleComplete(templateId: string) {
+    if (completingId) return;
+    setCompletingId(templateId);
 
     // Optimistic update
-    setData((prev) => {
-      if (!prev) return prev;
-      const template = prev.templates.find((t) => t.key === templateKey);
-      if (!template) return prev;
-      return {
-        ...prev,
-        entries: prev.entries.map((e) =>
-          e.templateId === template.id ? { ...e, completed: true } : e
-        ),
-      };
-    });
+    setItems((prev) => prev.map((item) =>
+      item.templateId === templateId ? { ...item, isCompleted: true } : item
+    ));
 
     try {
-      await fetch(`${API_BASE}/api/ritual/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'default', templateKey }),
-      });
+      await db.ritual.complete(templateId);
     } catch {
-      // Revert on failure
       await fetchTodayRitual();
     } finally {
-      setCompletingKey(null);
+      setCompletingId(null);
     }
   }
 
-  const completedCount = data
-    ? data.entries.filter((e) => e.completed).length
-    : 0;
-  const totalCount = data ? data.templates.length : 0;
+  const completedCount = items.filter((i) => i.isCompleted).length;
+  const totalCount = items.length;
 
   return (
     <div style={styles.page}>
@@ -92,22 +53,37 @@ export default function RitualPage() {
 
       <main style={styles.main}>
         {isLoading ? (
-          <div style={styles.placeholder}>加载中…</div>
-        ) : data ? (
           <div style={styles.list}>
-            {data.templates.map((template) => {
-              const entry = data.entries.find((e) => e.templateId === template.id);
-              return (
-                <RitualItem
-                  key={template.id}
-                  template={template}
-                  isCompleted={entry?.completed ?? false}
-                  onComplete={() => handleComplete(template.key)}
-                />
-              );
-            })}
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} style={styles.skeletonRow}>
+                <div style={styles.skeletonCircle} />
+                <div style={{ ...styles.skeletonBar, width: `${55 + i * 8}%` }} />
+              </div>
+            ))}
           </div>
-        ) : null}
+        ) : hasError ? (
+          <div style={styles.errorBox}>
+            <p style={styles.errorText}>加载失败，下拉刷新</p>
+            <button style={styles.retryBtn} onClick={() => void fetchTodayRitual()}>
+              重试
+            </button>
+          </div>
+        ) : items.length > 0 ? (
+          <div style={styles.list}>
+            {items.map((item) => (
+              <RitualItemRow
+                key={item.templateId}
+                item={item}
+                onComplete={() => handleComplete(item.templateId)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div style={styles.emptyBox}>
+            <p style={styles.emptyText}>今日仪式还没有内容</p>
+            <p style={styles.emptyHint}>仪式模板初始化后将自动出现在这里</p>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -129,45 +105,36 @@ function ProgressDots({ total, completed }: { total: number; completed: number }
   );
 }
 
-function RitualItem({
-  template,
-  isCompleted,
+function RitualItemRow({
+  item,
   onComplete,
 }: {
-  template: RitualTemplate;
-  isCompleted: boolean;
+  item: RitualItem;
   onComplete: () => void;
 }) {
   return (
     <div style={styles.item}>
       <button
-        onClick={isCompleted ? undefined : onComplete}
+        onClick={item.isCompleted ? undefined : onComplete}
         style={{
           ...styles.checkbox,
-          ...(isCompleted ? styles.checkboxDone : {}),
+          ...(item.isCompleted ? styles.checkboxDone : {}),
         }}
-        aria-label={isCompleted ? '已完成' : '标记完成'}
+        aria-label={item.isCompleted ? '已完成' : '标记完成'}
       >
-        {isCompleted && <CheckIcon />}
+        {item.isCompleted && <CheckIcon />}
       </button>
 
       <div style={styles.itemContent}>
         <span
           style={{
             ...styles.itemTitle,
-            ...(isCompleted ? styles.itemTitleDone : {}),
+            ...(item.isCompleted ? styles.itemTitleDone : {}),
           }}
         >
-          {template.title}
+          {item.title}
         </span>
-        {template.description && (
-          <span style={styles.itemDesc}>{template.description}</span>
-        )}
       </div>
-
-      {template.isOptional && (
-        <span style={styles.optionalTag}>可选</span>
-      )}
     </div>
   );
 }
@@ -292,9 +259,65 @@ const styles = {
     padding: '2px 8px',
     fontWeight: 400,
   },
-  placeholder: {
-    color: 'var(--color-text-muted)',
+  skeletonRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 'var(--spacing-md)',
+    padding: 'var(--spacing-md)',
+    borderBottom: '0.5px solid var(--color-separator, rgba(0,0,0,0.08))',
+    minHeight: '72px',
+  },
+  skeletonCircle: {
+    flexShrink: 0,
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    background: 'var(--color-text-muted)',
+    opacity: 0.18,
+  },
+  skeletonBar: {
+    height: '14px',
+    borderRadius: '6px',
+    background: 'var(--color-text-muted)',
+    opacity: 0.15,
+  },
+  errorBox: {
+    padding: 'var(--spacing-xl) var(--spacing-lg)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 'var(--spacing-md)',
+    alignItems: 'flex-start',
+  },
+  errorText: {
+    margin: 0,
     fontSize: '17px',
-    padding: 'var(--spacing-lg) 0',
+    color: 'var(--color-text-secondary)',
+  },
+  retryBtn: {
+    padding: '10px var(--spacing-lg)',
+    borderRadius: 'var(--radius-pill)',
+    border: '1px solid var(--color-border)',
+    background: 'transparent',
+    color: 'var(--color-text-secondary)',
+    fontSize: '15px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  emptyBox: {
+    padding: 'var(--spacing-xl) var(--spacing-lg)',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 'var(--spacing-xs)',
+  },
+  emptyText: {
+    margin: 0,
+    fontSize: '17px',
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+  },
+  emptyHint: {
+    margin: 0,
+    fontSize: '14px',
+    color: 'var(--color-text-muted)',
   },
 } as const;

@@ -1,26 +1,7 @@
 import { useEffect, useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+import { db, type DailyStats, type WeeklyReport } from '../../bridge/db';
 
 const DAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
-
-interface DailyStats {
-  date: string;
-  tasksTotal: number;
-  tasksCompleted: number;
-  ritualCompleted: number;
-  focusMinutes: number;
-  completionRate: number;
-}
-
-interface WeeklyReport {
-  weekNumber: number;
-  year: number;
-  stats: DailyStats[];
-  totalFocusMinutes: number;
-  avgCompletionRate: number;
-  streakDays: number;
-}
 
 // --- Bar Chart ---
 
@@ -122,12 +103,12 @@ export default function ProgressPage() {
 
   async function fetchAll() {
     try {
-      const [dailyRes, weeklyRes] = await Promise.all([
-        fetch(`${API_BASE}/api/progress/daily?userId=default`),
-        fetch(`${API_BASE}/api/progress/weekly?userId=default`),
+      const [dailyData, weeklyData] = await Promise.all([
+        db.progress.getDaily(),
+        db.progress.getWeekly(),
       ]);
-      if (dailyRes.ok) setDaily((await dailyRes.json()) as DailyStats);
-      if (weeklyRes.ok) setWeekly((await weeklyRes.json()) as WeeklyReport);
+      setDaily(dailyData);
+      setWeekly(weeklyData);
     } catch {
       // Non-critical — render empty state
     } finally {

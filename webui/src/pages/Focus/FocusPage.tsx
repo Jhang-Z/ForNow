@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { db, type FocusSession } from '../../bridge/db';
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
 const DEFAULT_DURATION_SECONDS = 25 * 60;
 
 type SessionStatus = 'idle' | 'running' | 'paused' | 'finished';
-
-interface FocusSession {
-  id: string;
-  userId: string;
-  taskTitle: string | null;
-  startTime: string;
-  status: string;
-  type: string;
-}
 
 interface FocusPageProps {
   onFocusStateChange?: (isActive: boolean) => void;
@@ -24,6 +15,7 @@ export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
   const [activeSession, setActiveSession] = useState<FocusSession | null>(null);
   const [taskTitle, setTaskTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [startError, setStartError] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Resume active session on mount
@@ -58,16 +50,13 @@ export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
 
   async function fetchActiveSession() {
     try {
-      const res = await fetch(`${API_BASE}/api/focus/active?userId=default`);
-      if (!res.ok) return;
-      const json = (await res.json()) as { session: FocusSession | null };
-      if (json.session) {
-        setActiveSession(json.session);
-        const elapsed = Math.floor((Date.now() - new Date(json.session.startTime).getTime()) / 1000);
+      const session = await db.focus.getActive();
+      if (session) {
+        setActiveSession(session);
+        const elapsed = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000);
         const remaining = Math.max(0, DEFAULT_DURATION_SECONDS - elapsed);
         setSecondsLeft(remaining);
         setSessionStatus(remaining > 0 ? 'running' : 'finished');
-        if (json.session.taskTitle) setTaskTitle(json.session.taskTitle);
       }
     } catch {
       // Non-critical — silently ignore
@@ -75,20 +64,15 @@ export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
   }
 
   async function handleStart() {
+    setStartError(false);
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/focus/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'default', taskTitle: taskTitle || undefined, type: 'pomodoro' }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { session: FocusSession };
-      setActiveSession(json.session);
+      const session = await db.focus.start(DEFAULT_DURATION_SECONDS);
+      setActiveSession(session);
       setSecondsLeft(DEFAULT_DURATION_SECONDS);
       setSessionStatus('running');
     } catch {
-      // TODO: show error toast
+      setStartError(true);
     } finally {
       setIsLoading(false);
     }
@@ -101,13 +85,10 @@ export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
       return;
     }
 
+    const elapsed = DEFAULT_DURATION_SECONDS - secondsLeft;
     setIsLoading(true);
     try {
-      await fetch(`${API_BASE}/api/focus/end`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'default', sessionId: activeSession.id }),
-      });
+      await db.focus.end(activeSession.id, elapsed);
     } catch {
       // Best-effort
     } finally {
@@ -162,13 +143,18 @@ export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
       {/* Controls */}
       <div style={styles.controls}>
         {isIdle && (
-          <button
-            style={{ ...styles.primaryBtn, opacity: isLoading ? 0.5 : 1 }}
-            onClick={handleStart}
-            disabled={isLoading}
-          >
-            开始专注
-          </button>
+          <>
+            <button
+              style={{ ...styles.primaryBtn, opacity: isLoading ? 0.5 : 1 }}
+              onClick={() => void handleStart()}
+              disabled={isLoading}
+            >
+              开始专注
+            </button>
+            {startError && (
+              <p style={styles.errorHint}>启动失败，请重试</p>
+            )}
+          </>
         )}
 
         {isActive && (
@@ -292,5 +278,11 @@ const styles = {
     fontSize: '15px',
     cursor: 'pointer',
     padding: '4px 0',
+  },
+  errorHint: {
+    margin: 0,
+    fontSize: '13px',
+    color: 'rgba(255,100,100,0.85)',
+    textAlign: 'center' as const,
   },
 } as const;

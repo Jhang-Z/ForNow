@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+import { db, type GrowthProfile } from '../../bridge/db';
 
 const EXP_PER_LEVEL = 100;
 
@@ -10,12 +9,6 @@ interface Ability {
   level: number;
   exp: number;
   expToNext: number;
-}
-
-interface GrowthProfile {
-  userId: string;
-  abilities: Ability[];
-  updatedAt: string;
 }
 
 // --- SVG Radar Chart ---
@@ -216,10 +209,33 @@ const cardStyles = {
   },
 } as const;
 
+const ABILITY_NAMES: Record<string, string> = {
+  focus: '专注',
+  execution: '执行',
+  consistency: '一致性',
+  clarity: '清晰',
+  energy: '精力',
+  reflection: '反思',
+};
+
+function bridgeProfileToAbilities(profile: GrowthProfile): Ability[] {
+  const keys = ['focus', 'execution', 'consistency', 'clarity', 'energy', 'reflection'] as const;
+  return keys.map((key) => {
+    const raw = profile[key];
+    const level = Math.floor(raw / EXP_PER_LEVEL) + 1;
+    const exp = raw % EXP_PER_LEVEL;
+    return { key, name: ABILITY_NAMES[key], level, exp, expToNext: EXP_PER_LEVEL - exp };
+  });
+}
+
 // --- GrowthPage ---
 
+interface GrowthPageData {
+  abilities: Ability[];
+}
+
 export default function GrowthPage() {
-  const [profile, setProfile] = useState<GrowthProfile | null>(null);
+  const [pageData, setPageData] = useState<GrowthPageData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -228,10 +244,8 @@ export default function GrowthPage() {
 
   async function fetchProfile() {
     try {
-      const res = await fetch(`${API_BASE}/api/growth/profile?userId=default`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as GrowthProfile & { traceId: string };
-      setProfile(json);
+      const profile = await db.growth.getProfile();
+      setPageData({ abilities: bridgeProfileToAbilities(profile) });
     } catch {
       // Non-critical — leave null, render empty state
     } finally {
@@ -245,14 +259,14 @@ export default function GrowthPage() {
 
       {isLoading && <div style={styles.placeholder}>加载中…</div>}
 
-      {!isLoading && profile && (
+      {!isLoading && pageData && (
         <>
           <div style={styles.radarWrapper}>
-            <RadarChart abilities={profile.abilities} />
+            <RadarChart abilities={pageData.abilities} />
           </div>
 
           <div style={styles.grid}>
-            {profile.abilities.map((a) => (
+            {pageData.abilities.map((a) => (
               <AbilityCard key={a.key} ability={a} />
             ))}
           </div>

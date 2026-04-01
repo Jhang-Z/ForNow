@@ -1,30 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { db, type Task } from '../../bridge/db';
 
-type TaskPriority = 'low' | 'medium' | 'high';
-
-interface Task {
-  id: string;
-  userId: string;
-  title: string;
-  missionId: string | null;
-  date: string;
-  completed: boolean;
-  priority: TaskPriority;
-  estimatedMinutes: number | null;
-  order: number;
-  completedAt: string | null;
-  createdAt: string;
-}
-
-interface TodayTasksData {
-  traceId: string;
-  tasks: Task[];
-  date: string;
-  completedCount: number;
-  totalCount: number;
-}
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000';
+type TaskPriority = Task['priority'];
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   low: '低',
@@ -39,43 +16,29 @@ const PRIORITY_COLOR: Record<TaskPriority, string> = {
 };
 
 export default function TasksPage() {
-  const [data, setData] = useState<TodayTasksData | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchTodayTasks();
+    void fetchTodayTasks();
   }, []);
 
   async function fetchTodayTasks() {
     try {
-      const res = await fetch(`${API_BASE}/api/tasks/today?userId=default`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData((await res.json()) as TodayTasksData);
+      setTasks(await db.tasks.getToday());
     } finally {
       setIsLoading(false);
     }
   }
 
   async function handleComplete(taskId: string) {
-    // Optimistic update
-    setData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, completed: true } : t)),
-        completedCount: prev.completedCount + 1,
-      };
-    });
+    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, isCompleted: true } : t)));
 
     try {
-      await fetch(`${API_BASE}/api/tasks/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'default', taskId }),
-      });
+      await db.tasks.complete(taskId);
     } catch {
       await fetchTodayTasks();
     }
@@ -88,53 +51,26 @@ export default function TasksPage() {
     setIsSubmitting(true);
     setInputValue('');
 
-    // Optimistic add
+    const tempId = `temp_${Date.now()}`;
     const tempTask: Task = {
-      id: `temp_${Date.now()}`,
+      id: tempId,
       userId: 'default',
       title,
-      missionId: null,
-      date: new Date().toISOString().slice(0, 10),
-      completed: false,
       priority: 'medium',
-      estimatedMinutes: null,
-      order: (data?.tasks.length ?? 0),
+      isCompleted: false,
       completedAt: null,
+      missionId: null,
+      dueDate: null,
       createdAt: new Date().toISOString(),
     };
 
-    setData((prev) => {
-      if (!prev) return prev;
-      return { ...prev, tasks: [...prev.tasks, tempTask], totalCount: prev.totalCount + 1 };
-    });
+    setTasks((prev) => [...prev, tempTask]);
 
     try {
-      const res = await fetch(`${API_BASE}/api/tasks/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: 'default', title }),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { task: Task };
-        // Replace temp task with real one
-        setData((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            tasks: prev.tasks.map((t) => (t.id === tempTask.id ? json.task : t)),
-          };
-        });
-      }
+      const created = await db.tasks.create(title);
+      setTasks((prev) => prev.map((t) => (t.id === tempId ? created : t)));
     } catch {
-      // Rollback temp task
-      setData((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          tasks: prev.tasks.filter((t) => t.id !== tempTask.id),
-          totalCount: prev.totalCount - 1,
-        };
-      });
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
     } finally {
       setIsSubmitting(false);
       inputRef.current?.focus();
@@ -145,8 +81,8 @@ export default function TasksPage() {
     if (e.key === 'Enter') handleAddTask();
   }
 
-  const completedCount = data?.completedCount ?? 0;
-  const totalCount = data?.totalCount ?? 0;
+  const completedCount = tasks.filter((t) => t.isCompleted).length;
+  const totalCount = tasks.length;
 
   return (
     <div style={styles.page}>
@@ -160,17 +96,17 @@ export default function TasksPage() {
       <main style={styles.main}>
         {isLoading ? (
           <div style={styles.placeholder}>加载中…</div>
-        ) : !data || data.tasks.length === 0 ? (
+        ) : tasks.length === 0 ? (
           <div style={styles.emptyState}>
             <p style={styles.emptyText}>今天还没有任务，添加一个吧</p>
           </div>
         ) : (
           <div style={styles.list}>
-            {data.tasks.map((task, index) => (
+            {tasks.map((task, index) => (
               <TaskRow
                 key={task.id}
                 task={task}
-                isLast={index === data.tasks.length - 1}
+                isLast={index === tasks.length - 1}
                 onComplete={() => handleComplete(task.id)}
               />
             ))}
@@ -223,20 +159,20 @@ function TaskRow({
       }}
     >
       <button
-        onClick={task.completed ? undefined : onComplete}
+        onClick={task.isCompleted ? undefined : onComplete}
         style={{
           ...styles.checkbox,
-          ...(task.completed ? styles.checkboxDone : {}),
+          ...(task.isCompleted ? styles.checkboxDone : {}),
         }}
-        aria-label={task.completed ? '已完成' : '标记完成'}
+        aria-label={task.isCompleted ? '已完成' : '标记完成'}
       >
-        {task.completed && <CheckIcon />}
+        {task.isCompleted && <CheckIcon />}
       </button>
 
       <span
         style={{
           ...styles.itemTitle,
-          ...(task.completed ? styles.itemTitleDone : {}),
+          ...(task.isCompleted ? styles.itemTitleDone : {}),
         }}
       >
         {task.title}

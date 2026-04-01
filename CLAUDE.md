@@ -71,7 +71,7 @@ user/      ← 用户偏好：主题、提醒设置
 
 ## 当前任务状态
 ```
-当前任务：iPhone 模拟器联调
+当前任务：voice domain
 已完成：
   - [x] Xcode SwiftUI 壳子 + WKWebView 容器
   - [x] WebUI React + Vite + Token 系统（米白色）
@@ -88,8 +88,13 @@ user/      ← 用户偏好：主题、提醒设置
   - [x] progress domain + ProgressPage.tsx（3数据卡片 + 7天条形图）
   - [x] Tab Bar 底部导航（5标签：使命/仪式/专注/成长/回顾）
   - [x] MissionPage 改造（黑色大卡片 + 设定使命输入框 + POST /api/mission 接口）
+  - [x] iPhone 模拟器联调（WebView file:// 加载正常，React 渲染正常）
+  - [x] P1 修复：MissionPage / RitualPage 错误处理（loading骨架屏 + error重试 + empty引导）
+  - [x] P1 修复：db.progress.getDaily 改为真实数据（ritualCompleted + focusMinutes）
+  - [x] P1 修复：FocusPage handleStart TODO 完成（error状态展示）
+  - [x] MissionPage 完善：使命可编辑（点击标题）+ 周/月/年日历视图 + haptic 反馈（light/medium/success）
 进行中：
-  - [ ] iPhone 模拟器联调
+  - 无
 阻塞：
   - 无
 下一步：

@@ -1,4 +1,10 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { callNative, isNativeEnv } from './bridge/native';
+
+function haptic(style: 'light' | 'medium') {
+  if (!isNativeEnv()) return;
+  void callNative('haptic', { style });
+}
 import MissionPage from './pages/Mission/MissionPage';
 import RitualPage from './pages/Ritual/RitualPage';
 import FocusPage from './pages/Focus/FocusPage';
@@ -7,7 +13,7 @@ import ProgressPage from './pages/Progress/ProgressPage';
 
 type TabId = 'mission' | 'ritual' | 'focus' | 'growth' | 'progress';
 
-const TABS: { id: TabId; label: string; icon: JSX.Element }[] = [
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   {
     id: 'mission',
     label: '使命',
@@ -89,7 +95,7 @@ export default function App() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => { haptic('light'); setActiveTab(tab.id); }}
                 style={{ ...styles.tabItem, color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-muted)' }}
               >
                 <span style={{ ...styles.tabIcon, opacity: isActive ? 1 : 0.5 }}>{tab.icon}</span>

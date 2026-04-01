@@ -5,7 +5,7 @@ import { logger } from './observability/logger';
 import { AppError } from './shared/errors';
 import { initDb } from './db/index';
 import { generatePlan } from './orchestrator/planner';
-import { toolGetCurrentMission, toolCreateMission, getWeekNumber } from './domains/mission/tools';
+import { toolGetCurrentMission, toolCreateMission, toolUpdateMission, getWeekNumber } from './domains/mission/tools';
 import { toolGetTodayRitual, toolCompleteRitualItem } from './domains/ritual/tools';
 import { initDefaultTemplates } from './domains/ritual/repository';
 import { toolGetTodayTasks, toolCreateTask, toolCompleteTask } from './domains/tasks/tools';
@@ -105,6 +105,36 @@ app.post('/api/mission', async (req: Request, res: Response, next: NextFunction)
       weekNumber: getWeekNumber(now),
       year: now.getFullYear(),
     });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, mission });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.put('/api/mission/:id', async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params as { id: string };
+  const { userId, title, description } = req.body as {
+    userId?: string;
+    title?: string;
+    description?: string;
+  };
+
+  if (!title) {
+    res.status(400).json({ error: 'title is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: `/api/mission/${id}`, title });
+
+  try {
+    const mission = await toolUpdateMission(ctx, { id, title, description });
+    if (!mission) {
+      res.status(404).json({ error: 'Mission not found', code: 'NOT_FOUND' });
+      return;
+    }
     ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
     res.json({ traceId: ctx.traceId, mission });
   } catch (err) {
