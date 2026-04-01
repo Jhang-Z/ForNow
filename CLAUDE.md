@@ -71,7 +71,7 @@ user/      ← 用户偏好：主题、提醒设置
 
 ## 当前任务状态
 ```
-当前任务：growth domain
+当前任务：iPhone 模拟器联调
 已完成：
   - [x] Xcode SwiftUI 壳子 + WKWebView 容器
   - [x] WebUI React + Vite + Token 系统（米白色）
@@ -84,12 +84,17 @@ user/      ← 用户偏好：主题、提醒设置
   - [x] tasks domain + TasksPage.tsx（快速添加/完成/优先级标签）
   - [x] GitHub 同步
   - [x] focus domain + FocusPage.tsx（番茄钟 + 黑色全屏 + 会话记录）
+  - [x] growth domain + GrowthPage.tsx（6维SVG雷达图 + 等级 + exp进度条）
+  - [x] progress domain + ProgressPage.tsx（3数据卡片 + 7天条形图）
+  - [x] Tab Bar 底部导航（5标签：使命/仪式/专注/成长/回顾）
+  - [x] MissionPage 改造（黑色大卡片 + 设定使命输入框 + POST /api/mission 接口）
 进行中：
-  - [ ] growth domain
+  - [ ] iPhone 模拟器联调
 阻塞：
   - 无
 下一步：
-  - [ ] growth domain（6维雷达图 + 等级 + 经验值）
+  - [ ] voice domain（录音转文字 + Claude 意图解析）
+  - [ ] iOS 真机测试
 ```
 
 ## 最近架构决策

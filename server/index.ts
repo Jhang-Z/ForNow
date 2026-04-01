@@ -5,11 +5,13 @@ import { logger } from './observability/logger';
 import { AppError } from './shared/errors';
 import { initDb } from './db/index';
 import { generatePlan } from './orchestrator/planner';
-import { toolGetCurrentMission, getWeekNumber } from './domains/mission/tools';
+import { toolGetCurrentMission, toolCreateMission, getWeekNumber } from './domains/mission/tools';
 import { toolGetTodayRitual, toolCompleteRitualItem } from './domains/ritual/tools';
 import { initDefaultTemplates } from './domains/ritual/repository';
 import { toolGetTodayTasks, toolCreateTask, toolCompleteTask } from './domains/tasks/tools';
 import { toolStartFocus, toolEndFocus, toolGetActiveSession, toolGetTodayFocusStats } from './domains/focus/tools';
+import { toolGetGrowthProfile, toolAddAbilityExp } from './domains/growth/tools';
+import { toolGetDailyStats, toolGetWeeklyReport, toolGetStreakDays } from './domains/progress/tools';
 
 // NODE_TLS_REJECT_UNAUTHORIZED=0 causes Anthropic SDK to reject requests with 403.
 // It may be set by system-level tooling; remove it from this process's env.
@@ -73,6 +75,38 @@ app.get('/api/mission/current', async (req: Request, res: Response, next: NextFu
       year: now.getFullYear(),
       mission,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/mission', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, title, description } = req.body as {
+    userId?: string;
+    title?: string;
+    description?: string;
+  };
+
+  if (!title) {
+    res.status(400).json({ error: 'title is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/mission', title });
+
+  try {
+    const now = new Date();
+    const mission = await toolCreateMission(ctx, {
+      userId: resolvedUserId,
+      title,
+      description,
+      weekNumber: getWeekNumber(now),
+      year: now.getFullYear(),
+    });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, mission });
   } catch (err) {
     next(err);
   }
@@ -260,6 +294,96 @@ app.get('/api/focus/stats/today', async (req: Request, res: Response, next: Next
     const stats = await toolGetTodayFocusStats(ctx, { userId });
     ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
     res.json({ traceId: ctx.traceId, ...stats });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/growth/profile', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/growth/profile' });
+
+  try {
+    const snapshot = await toolGetGrowthProfile(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...snapshot });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/growth/exp', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, abilityKey, amount, reason } = req.body as {
+    userId?: string;
+    abilityKey?: string;
+    amount?: number;
+    reason?: string;
+  };
+
+  if (!abilityKey || amount === undefined || !reason) {
+    res.status(400).json({ error: 'abilityKey, amount, and reason are required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/growth/exp', abilityKey, amount });
+
+  try {
+    const record = await toolAddAbilityExp(ctx, {
+      userId: resolvedUserId,
+      abilityKey: abilityKey as import('./domains/growth/types').AbilityKey,
+      amount,
+      reason,
+    });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, record });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/progress/daily', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const date = req.query['date'] as string | undefined;
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/progress/daily', date });
+
+  try {
+    const stats = await toolGetDailyStats(ctx, { userId, date });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...stats });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/progress/weekly', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const weekNumber = req.query['weekNumber'] ? Number(req.query['weekNumber']) : undefined;
+  const year = req.query['year'] ? Number(req.query['year']) : undefined;
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/progress/weekly', weekNumber, year });
+
+  try {
+    const report = await toolGetWeeklyReport(ctx, { userId, weekNumber, year });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...report });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/progress/streak', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/progress/streak' });
+
+  try {
+    const streakDays = await toolGetStreakDays(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, streakDays });
   } catch (err) {
     next(err);
   }

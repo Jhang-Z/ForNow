@@ -103,4 +103,24 @@ export function initDb(): void {
       completed_at INTEGER
     )
   `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS growth_records (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      ability_key TEXT NOT NULL,
+      exp_gained INTEGER NOT NULL,
+      reason TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS ability_snapshots (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL UNIQUE,
+      abilities_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
 }

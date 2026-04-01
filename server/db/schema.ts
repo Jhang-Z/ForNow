@@ -72,3 +72,20 @@ export const ritual_entries_table = sqliteTable('ritual_entries', {
   content: text('content'),
   completedAt: integer('completed_at', { mode: 'timestamp' }),
 });
+
+export const growth_records_table = sqliteTable('growth_records', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  abilityKey: text('ability_key').notNull(),
+  expGained: integer('exp_gained').notNull(),
+  reason: text('reason').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const ability_snapshots_table = sqliteTable('ability_snapshots', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().unique(),
+  // JSON-serialized Ability[] stored as text
+  abilitiesJson: text('abilities_json').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});

@@ -14,7 +14,11 @@ interface FocusSession {
   type: string;
 }
 
-export default function FocusPage() {
+interface FocusPageProps {
+  onFocusStateChange?: (isActive: boolean) => void;
+}
+
+export default function FocusPage({ onFocusStateChange }: FocusPageProps) {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [secondsLeft, setSecondsLeft] = useState(DEFAULT_DURATION_SECONDS);
   const [activeSession, setActiveSession] = useState<FocusSession | null>(null);
@@ -26,6 +30,10 @@ export default function FocusPage() {
   useEffect(() => {
     void fetchActiveSession();
   }, []);
+
+  useEffect(() => {
+    onFocusStateChange?.(sessionStatus === 'running' || sessionStatus === 'paused');
+  }, [sessionStatus, onFocusStateChange]);
 
   useEffect(() => {
     if (sessionStatus === 'running') {
@@ -195,7 +203,7 @@ export default function FocusPage() {
 const styles = {
   page: {
     height: '100dvh',
-    background: '#0A0A0A',
+    background: 'var(--color-bg-focus)',
     display: 'flex',
     flexDirection: 'column' as const,
     alignItems: 'center',
@@ -258,7 +266,7 @@ const styles = {
     width: '100%',
     padding: '14px 0',
     background: 'var(--color-primary)',
-    color: '#0A0A0A',
+    color: 'var(--color-text-primary)',
     border: 'none',
     borderRadius: 'var(--radius-pill)',
     fontSize: '17px',
