@@ -26,10 +26,15 @@ export function initDb(): void {
   db.run(sql`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
-      goal_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
       title TEXT NOT NULL,
+      mission_id TEXT,
+      date TEXT NOT NULL,
       completed INTEGER NOT NULL DEFAULT 0,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      estimated_minutes INTEGER,
+      "order" INTEGER NOT NULL DEFAULT 0,
+      completed_at INTEGER,
       created_at INTEGER NOT NULL
     )
   `);
@@ -53,11 +58,28 @@ export function initDb(): void {
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
       task_id TEXT,
+      task_title TEXT,
       start_time INTEGER NOT NULL,
       end_time INTEGER,
-      duration INTEGER
+      duration INTEGER,
+      status TEXT NOT NULL DEFAULT 'active',
+      type TEXT NOT NULL DEFAULT 'pomodoro'
     )
   `);
+
+  // Best-effort migration: add new columns to pre-existing focus_sessions table
+  const focusCols = sqlite.prepare("PRAGMA table_info(focus_sessions)").all() as Array<{ name: string }>;
+  const focusColNames = focusCols.map(c => c.name);
+  if (!focusColNames.includes('task_title')) {
+    sqlite.prepare('ALTER TABLE focus_sessions ADD COLUMN task_title TEXT').run();
+  }
+  if (!focusColNames.includes('status')) {
+    sqlite.prepare("ALTER TABLE focus_sessions ADD COLUMN status TEXT NOT NULL DEFAULT 'active'").run();
+  }
+  if (!focusColNames.includes('type')) {
+    sqlite.prepare("ALTER TABLE focus_sessions ADD COLUMN type TEXT NOT NULL DEFAULT 'pomodoro'").run();
+  }
+
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS ritual_templates (

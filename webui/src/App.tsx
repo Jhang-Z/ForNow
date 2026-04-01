@@ -1,5 +1,5 @@
-import RitualPage from './pages/Ritual/RitualPage';
+import FocusPage from './pages/Focus/FocusPage';
 
 export default function App() {
-  return <RitualPage />;
+  return <FocusPage />;
 }

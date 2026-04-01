@@ -70,28 +70,34 @@ user/      ← 用户偏好：主题、提醒设置
 ---
 
 ## 当前任务状态
-
 ```
-当前任务：项目初始化 — 搭建目录结构和开发环境
+当前任务：growth domain
 已完成：
-  - [x] Xcode 项目创建（SwiftUI 模板）
-  - [x] CLAUDE.md 文件体系搭建
+  - [x] Xcode SwiftUI 壳子 + WKWebView 容器
+  - [x] WebUI React + Vite + Token 系统（米白色）
+  - [x] Node.js 后端 + TraceId + /health 接口
+  - [x] Orchestrator（planner + executor + toolRegistry）
+  - [x] SQLite + Drizzle ORM 数据库
+  - [x] Claude API 端到端打通
+  - [x] mission domain + MissionPage.tsx
+  - [x] ritual domain + RitualPage.tsx（checkbox 完成动画）
+  - [x] tasks domain + TasksPage.tsx（快速添加/完成/优先级标签）
+  - [x] GitHub 同步
+  - [x] focus domain + FocusPage.tsx（番茄钟 + 黑色全屏 + 会话记录）
 进行中：
-  - [ ] 整理目录结构（ios/ 对齐 Xcode 项目位置）
-  - [ ] 初始化 Node.js 后端
-  - [ ] 初始化 React WebUI
+  - [ ] growth domain
 阻塞：
   - 无
 下一步：
-  - [ ] 运行 npm init 初始化 server/
-  - [ ] 运行 npm create vite 初始化 webui/
-  - [ ] 改造 SwiftUI 入口为 WKWebView 容器
+  - [ ] growth domain（6维雷达图 + 等级 + 经验值）
 ```
-
----
 
 ## 最近架构决策
 
 - ADR-001：monorepo 结构，iOS / server / webui 在同一 repo
 - ADR-002：SwiftUI 只做壳子，WKWebView 承载所有 UI
 - ADR-003：Plan + Execute Agent 流水线
+- ADR-004：UI 风格改为米白色极简（原黑底琥珀废弃）
+- ADR-005：7个域：mission / ritual / tasks / focus / growth / progress / voice
+
+---

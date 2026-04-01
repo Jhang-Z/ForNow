@@ -8,6 +8,8 @@ import { generatePlan } from './orchestrator/planner';
 import { toolGetCurrentMission, getWeekNumber } from './domains/mission/tools';
 import { toolGetTodayRitual, toolCompleteRitualItem } from './domains/ritual/tools';
 import { initDefaultTemplates } from './domains/ritual/repository';
+import { toolGetTodayTasks, toolCreateTask, toolCompleteTask } from './domains/tasks/tools';
+import { toolStartFocus, toolEndFocus, toolGetActiveSession, toolGetTodayFocusStats } from './domains/focus/tools';
 
 // NODE_TLS_REJECT_UNAUTHORIZED=0 causes Anthropic SDK to reject requests with 403.
 // It may be set by system-level tooling; remove it from this process's env.
@@ -114,6 +116,150 @@ app.post('/api/ritual/complete', async (req: Request, res: Response, next: NextF
     }
     ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
     res.json({ traceId: ctx.traceId, entry });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/tasks/today', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/tasks/today' });
+
+  try {
+    const result = await toolGetTodayTasks(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/tasks/create', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, title, missionId, priority } = req.body as {
+    userId?: string;
+    title?: string;
+    missionId?: string;
+    priority?: string;
+  };
+
+  if (!title) {
+    res.status(400).json({ error: 'title is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/tasks/create', title });
+
+  try {
+    const task = await toolCreateTask(ctx, {
+      userId: resolvedUserId,
+      title,
+      missionId,
+      priority: priority as 'low' | 'medium' | 'high' | undefined,
+    });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, task });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/tasks/complete', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, taskId } = req.body as { userId?: string; taskId?: string };
+
+  if (!taskId) {
+    res.status(400).json({ error: 'taskId is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/tasks/complete', taskId });
+
+  try {
+    const task = await toolCompleteTask(ctx, { taskId, userId: resolvedUserId });
+    if (!task) {
+      res.status(404).json({ error: 'Task not found', code: 'NOT_FOUND' });
+      return;
+    }
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, task });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/focus/start', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, taskTitle, durationMinutes, type } = req.body as {
+    userId?: string;
+    taskTitle?: string;
+    durationMinutes?: number;
+    type?: 'pomodoro' | 'free';
+  };
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/focus/start' });
+
+  try {
+    const session = await toolStartFocus(ctx, { userId: resolvedUserId, taskTitle, durationMinutes, type });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, session });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/focus/end', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, sessionId } = req.body as { userId?: string; sessionId?: string };
+
+  if (!sessionId) {
+    res.status(400).json({ error: 'sessionId is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/focus/end', sessionId });
+
+  try {
+    const session = await toolEndFocus(ctx, { sessionId, userId: resolvedUserId });
+    if (!session) {
+      res.status(404).json({ error: 'Session not found', code: 'NOT_FOUND' });
+      return;
+    }
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, session });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/focus/active', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/focus/active' });
+
+  try {
+    const session = await toolGetActiveSession(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, session });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/focus/stats/today', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/focus/stats/today' });
+
+  try {
+    const stats = await toolGetTodayFocusStats(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...stats });
   } catch (err) {
     next(err);
   }
