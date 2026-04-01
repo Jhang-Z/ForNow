@@ -58,4 +58,27 @@ export function initDb(): void {
       duration INTEGER
     )
   `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS ritual_templates (
+      id TEXT PRIMARY KEY,
+      key TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT,
+      is_optional INTEGER NOT NULL DEFAULT 0,
+      "order" INTEGER NOT NULL
+    )
+  `);
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS ritual_entries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      template_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      completed INTEGER NOT NULL DEFAULT 0,
+      content TEXT,
+      completed_at INTEGER
+    )
+  `);
 }

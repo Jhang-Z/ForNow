@@ -6,6 +6,8 @@ import { AppError } from './shared/errors';
 import { initDb } from './db/index';
 import { generatePlan } from './orchestrator/planner';
 import { toolGetCurrentMission, getWeekNumber } from './domains/mission/tools';
+import { toolGetTodayRitual, toolCompleteRitualItem } from './domains/ritual/tools';
+import { initDefaultTemplates } from './domains/ritual/repository';
 
 // NODE_TLS_REJECT_UNAUTHORIZED=0 causes Anthropic SDK to reject requests with 403.
 // It may be set by system-level tooling; remove it from this process's env.
@@ -14,9 +16,19 @@ delete process.env['NODE_TLS_REJECT_UNAUTHORIZED'];
 const PORT = process.env.PORT ?? 3000;
 
 initDb();
+initDefaultTemplates();
 
 const app = express();
 app.use(express.json());
+
+// Allow WebUI dev server (Vite) to call the API from a different origin
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (_req.method === 'OPTIONS') { res.sendStatus(204); return; }
+  next();
+});
 
 app.get('/health', (_req: Request, res: Response) => {
   const ctx = createContext('system');
@@ -59,6 +71,49 @@ app.get('/api/mission/current', async (req: Request, res: Response, next: NextFu
       year: now.getFullYear(),
       mission,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/ritual/today', async (req: Request, res: Response, next: NextFunction) => {
+  const userId = (req.query['userId'] as string | undefined) ?? 'default';
+  const ctx = createContext(userId);
+  ctx.log('request.received', { path: '/api/ritual/today' });
+
+  try {
+    const result = await toolGetTodayRitual(ctx, { userId });
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/ritual/complete', async (req: Request, res: Response, next: NextFunction) => {
+  const { userId, templateKey, content } = req.body as {
+    userId?: string;
+    templateKey?: string;
+    content?: string;
+  };
+
+  if (!templateKey) {
+    res.status(400).json({ error: 'templateKey is required', code: 'BAD_REQUEST' });
+    return;
+  }
+
+  const resolvedUserId = userId ?? 'default';
+  const ctx = createContext(resolvedUserId);
+  ctx.log('request.received', { path: '/api/ritual/complete', templateKey });
+
+  try {
+    const entry = await toolCompleteRitualItem(ctx, { userId: resolvedUserId, templateKey, content });
+    if (!entry) {
+      res.status(404).json({ error: 'Ritual item not found', code: 'NOT_FOUND' });
+      return;
+    }
+    ctx.log('request.complete', { duration: Date.now() - ctx.startTime });
+    res.json({ traceId: ctx.traceId, entry });
   } catch (err) {
     next(err);
   }

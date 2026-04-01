@@ -41,3 +41,22 @@ export const focus_sessions_table = sqliteTable('focus_sessions', {
   endTime: integer('end_time', { mode: 'timestamp' }),
   duration: integer('duration'), // seconds
 });
+
+export const ritual_templates_table = sqliteTable('ritual_templates', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  title: text('title').notNull(),
+  description: text('description'),
+  isOptional: integer('is_optional', { mode: 'boolean' }).notNull().default(false),
+  order: integer('order').notNull(),
+});
+
+export const ritual_entries_table = sqliteTable('ritual_entries', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  templateId: text('template_id').notNull(),
+  date: text('date').notNull(), // YYYY-MM-DD
+  completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+  content: text('content'),
+  completedAt: integer('completed_at', { mode: 'timestamp' }),
+});

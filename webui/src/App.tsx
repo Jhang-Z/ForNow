@@ -1,5 +1,5 @@
-import MissionPage from './pages/Mission/MissionPage';
+import RitualPage from './pages/Ritual/RitualPage';
 
 export default function App() {
-  return <MissionPage />;
+  return <RitualPage />;
 }
